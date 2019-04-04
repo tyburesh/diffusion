@@ -10,4 +10,4 @@ Installation of PyCUDA (can be on any Mesabi node):
 Usage (must be on a k40 node):
 - module load python2
 - source activate pycuda3
-- module load cuda
+- module load cuda/9.0
