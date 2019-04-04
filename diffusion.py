@@ -2,12 +2,19 @@
 # Local diffusion using Python
 
 # imports
-import numpy as np 
+import numpy as np
+import pycuda.autoinit
+import pycuda.driver as drv
+import pycuda.gpuarray as gpuarray
+import pycuda.curandom as curandom
+from pycuda.tools import DeviceData
+from pycuda.compiler import SourceModule
 
 # constants
 MATRIX_SIZE = 8 # size of square grid
-BLOCK_SIZE = 2 # number of blocks
+BLOCK_SIZE = 2 # block dimensions
 PROBABILITY = 0.5 # probability of diffusion
+N_ITERS = 2 # number of iterations
 
 class Diffusion:
 	def __init__(self, matrix, block, probability):
@@ -25,37 +32,47 @@ class Diffusion:
 
 	def initialize_kernel(self):
 		self.kernel_code = """
+
 			// Ignore edge rows and columns
 			// Assuming the matrix is large, the effect of this is small
-			__global__ void diffuse(float* grid, float* new_grid, float prob)
+			__global__ void diffuse(float* grid, float* new_grid, float* randoms)
 			{{
 
 				unsigned int grid_size = {};
+				float prob = {};
 
 				unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;			// column element of index
 				unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;			// row element of index
-				unsigned int thread_id = y * m_size + x; 						// thread index in array
+				unsigned int thread_id = y * grid_size + x; 					// thread index in array
 
 				unsigned int edge = (x == 0) || (x == grid_size - 1) || (y == 0) || (y == grid_size - 1);
 
 				if ((grid[thread_id] == 1) && !(edge)) {{
-					unsigned int above = thread_id - m_size;
-					unsigned int above_left = thread_id - m_size - 1;
-					unsigned int above_right = thread_id - m_size + 1;
-					unsigned int below = thread_id + m_size;
-					unsigned int below_left = thread_id + m_size - 1;
-					unsigned int below_right = thread_id + m_size + 1;
-					unsigned int left = thread_id - 1;
-					unsigned int right = thread_id + 1;
-
-					new_grid[above] = 1;
-					new_grid[above_left] = 1;
-					new_grid[above_right] = 1;
-					new_grid[below] = 1;
-					new_grid[below_left] = 1;
-					new_grid[below_right] = 1;
-					new_grid[left] = 1;
-					new_grid[right] = 1;
+					new_grid[thread_id] = 1;									// current cell
+					if (randoms[thread_id - grid_size] > prob) {{
+						new_grid[thread_id - grid_size] = 1;					// above
+					}}
+					if (randoms[thread_id - grid_size - 1] > prob) {{
+						new_grid[thread_id - grid_size - 1] = 1;				// above and left
+					}}
+					if (randoms[thread_id - grid_size + 1] > prob) {{
+						new_grid[thread_id - grid_size + 1] = 1;				// above and right
+					}}
+					if (randoms[thread_id + grid_size] > prob) {{
+						new_grid[thread_id + grid_size] = 1;					// below
+					}}
+					if (randoms[thread_id + grid_size - 1] > prob) {{
+						new_grid[thread_id + grid_size - 1] = 1;				// below and left
+					}}
+					if (randoms[thread_id + grid_size + 1] > prob) {{
+						new_grid[thread_id + grid_size + 1] = 1;				// below and right
+					}}
+					if (randoms[thread_id - 1] > prob) {{
+						new_grid[thread_id - 1] = 1;							// left
+					}}
+					if (randoms[thread_id + 1] > prob) {{
+						new_grid[thread_id + 1] = 1;							// right
+					}}
 				}}
 			}}
 		"""
@@ -64,7 +81,7 @@ class Diffusion:
 		self.grid_gpu = gpuarray.to_gpu(self.grid)
 		self.new_grid = gpuarray.empty((self.size, self.size), np.float32)
 
-		self.kernel = self.kernel_code.format(self.size)
+		self.kernel = self.kernel_code.format(self.size, self.prob)
 
 		# Compile kernel code
 		self.mod = SourceModule(self.kernel)
@@ -72,19 +89,28 @@ class Diffusion:
 		# Get kernel function from compiled module
 		self.diffusion = self.mod.get_function('diffuse')
 
+		self.randoms = curandom.rand((self.size, self.size))
+
 	def run(self):
-		print('Starting grid: ', self.grid)
-		self.diffusion(
-			# input
-			self.grid_gpu,
-			# output
-			self.new_grid,
-			# grid of n_blocks x n_blocks
-			grid = (self.n_blocks, self.n_blocks, 1),
-			# block 0f n_threads x n_threads
-			block = (self.n_threads, self.n_threads, 1)
-			)
-		print('Final grid: ', self.new_grid)
+		print('Starting grid: ', self.grid_gpu)
+		i = 0
+		while i < N_ITERS:
+			self.diffusion(
+				# input
+				self.grid_gpu,
+				# output
+				self.new_grid,
+				# random floats used for diffusion
+				self.randoms,
+				# grid of n_blocks x n_blocks
+				grid = (self.n_blocks, self.n_blocks, 1),
+				# block 0f n_threads x n_threads
+				block = (self.n_threads, self.n_threads, 1),
+				)
+			self.grid_gpu, self.new_grid = self.new_grid, self.grid_gpu
+			self.randoms = curandom.rand((self.size, self.size))
+			i += 1
+		print('Final grid: ', self.grid_gpu)
 
 if __name__ == '__main__':
 	Diffusion(MATRIX_SIZE, BLOCK_SIZE, PROBABILITY)
