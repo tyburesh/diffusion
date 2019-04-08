@@ -14,7 +14,7 @@ from pycuda.compiler import SourceModule
 MATRIX_SIZE = 8 # size of square grid
 BLOCK_SIZE = 2 # block dimensions
 PROBABILITY = 0.9 # probability of diffusion
-N_ITERS = 1 # number of iterations
+N_ITERS = 2 # number of iterations
 
 class Diffusion:
 	def __init__(self, matrix, block, probability):
