@@ -14,15 +14,17 @@ from pycuda.compiler import SourceModule
 # constants
 MATRIX_SIZE = 8 # size of square grid
 BLOCK_SIZE = 2 # block dimensions
-PROBABILITY = 0.25 # probability of diffusion
-N_ITERS = 1 # number of iterations
+P_LOCAL = 0.1 # probability of local diffusion
+P_NON_LOCAL = 0.25 # probability of non-local diffusion
+N_ITERS = 10 # number of iterations
 
 class Diffusion:
-	def __init__(self, matrix, block, probability):
+	def __init__(self, matrix, block, local, non_local):
 		self.size = matrix
 		self.n_blocks = matrix // block
 		self.n_threads = block
-		self.prob = probability
+		self.p_local = local
+		self.p_non_local = non_local
 		self.initialize_grid()
 		self.initialize_kernel()
 		self.run()
@@ -105,7 +107,7 @@ class Diffusion:
 		self.grid_gpu = gpuarray.to_gpu(self.grid)
 		self.new_grid = gpuarray.empty((self.size, self.size), np.float32)
 
-		self.kernel = self.kernel_code.format(self.size, self.prob, self.size, self.prob)
+		self.kernel = self.kernel_code.format(self.size, self.p_local, self.size, self.p_non_local)
 
 		# Compile kernel code
 		self.mod = SourceModule(self.kernel)
@@ -157,7 +159,7 @@ class Diffusion:
 		print('\nFinal grid: \n', self.grid_gpu)
 
 if __name__ == '__main__':
-	Diffusion(MATRIX_SIZE, BLOCK_SIZE, PROBABILITY)
+	Diffusion(MATRIX_SIZE, BLOCK_SIZE, P_LOCAL, P_NON_LOCAL)
 
 
 
