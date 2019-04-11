@@ -13,8 +13,8 @@ from pycuda.compiler import SourceModule
 # constants
 MATRIX_SIZE = 8 # size of square grid
 BLOCK_SIZE = 2 # block dimensions
-PROBABILITY = 0.5 # probability of diffusion
-N_ITERS = 2 # number of iterations
+PROBABILITY = 0.1 # probability of diffusion
+N_ITERS = 10 # number of iterations
 
 class Diffusion:
 	def __init__(self, matrix, block, probability):
@@ -49,7 +49,8 @@ class Diffusion:
 
 				if (grid[thread_id] == 1) {{
 					new_grid[thread_id] = 1;									// current cell
-					if !(edge) {{
+					if (!edge) {{
+						/*
 						if (randoms[thread_id - grid_size] < prob) {{
 							new_grid[thread_id - grid_size] = 1;				// above
 						}}
@@ -62,6 +63,7 @@ class Diffusion:
 						if (randoms[thread_id + grid_size] < prob) {{
 							new_grid[thread_id + grid_size] = 1;				// below
 						}}
+						*/
 						if (randoms[thread_id + grid_size - 1] < prob) {{
 							new_grid[thread_id + grid_size - 1] = 1;			// below and left
 						}}
@@ -95,7 +97,7 @@ class Diffusion:
 		self.randoms = curandom.rand((self.size, self.size))
 
 	def run(self):
-		print('Starting grid: ', self.grid_gpu)
+		print('Starting grid: \n', self.grid_gpu)
 		i = 0
 		while i < N_ITERS:
 			self.diffusion(
@@ -113,7 +115,8 @@ class Diffusion:
 			self.grid_gpu, self.new_grid = self.new_grid, self.grid_gpu
 			self.randoms = curandom.rand((self.size, self.size))
 			i += 1
-		print('Final grid: ', self.grid_gpu)
+			print('\nGrid after iteration {}: \n{}'.format(i, self.grid_gpu))
+		print('\nFinal grid: \n', self.grid_gpu)
 
 if __name__ == '__main__':
 	Diffusion(MATRIX_SIZE, BLOCK_SIZE, PROBABILITY)
