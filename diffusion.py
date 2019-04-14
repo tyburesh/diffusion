@@ -52,7 +52,6 @@ class Diffusion:
 				if (grid[thread_id] == 1) {{
 					new_grid[thread_id] = 1;									// current cell
 					if (!edge) {{
-						/*
 						if (randoms[thread_id - grid_size] < prob) {{
 							new_grid[thread_id - grid_size] = 1;				// above
 						}}
@@ -65,7 +64,6 @@ class Diffusion:
 						if (randoms[thread_id + grid_size] < prob) {{
 							new_grid[thread_id + grid_size] = 1;				// below
 						}}
-						*/
 						if (randoms[thread_id + grid_size - 1] < prob) {{
 							new_grid[thread_id + grid_size - 1] = 1;			// below and left
 						}}
@@ -102,6 +100,15 @@ class Diffusion:
 				}}
 			}}
 		"""
+
+		# Below this will be in split
+		# Split transfers data to GPU memory
+		# Random not part of split
+
+		# grid_a = initialize_grid(MATRIX_SIZE, BLOCK_SIZE, P_LOCAL, P_NON_LOCAL)
+		# grid_b = empty grid
+		# grid_a, grid_b <
+		# local_diffuse(grid_a, grid_b)
 
 		# Transfer CPU memory to GPU memory
 		self.grid_gpu = gpuarray.to_gpu(self.grid)
