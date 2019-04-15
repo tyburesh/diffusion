@@ -17,6 +17,9 @@ BLOCK_SIZE = 2 # block dimensions
 P_LOCAL = 0.1 # probability of local diffusion
 P_NON_LOCAL = 0.25 # probability of non-local diffusion
 N_ITERS = 5 # number of iterations
+N_STREAMS = 4 # data broken into four quadrants
+STREAM_SIZE = MATRIX_SIZE * MATRIX_SIZE // N_STREAMS # data elements per stream
+
 
 class Diffusion:
 	def __init__(self, matrix, block, local, non_local):
@@ -36,9 +39,9 @@ class Diffusion:
 		self.grid[self.size // 2][self.size // 2] = 1 # seed is in the center of the matrix
 
 	# Transfer CPU memory to GPU memory
-	def initialize_gpu_memory(self):
-		self.grid_a = gpuarray.to_gpu(self.grid)
-		self.grid_b = gpuarray.empty((self.size, self.size), np.float32)
+	#def initialize_gpu_memory(self):
+	#	self.grid_a = gpuarray.to_gpu(self.grid)
+	#	self.grid_b = gpuarray.empty((self.size, self.size), np.float32)
 
 	# Create kernel and kernel functions
 	def initialize_kernel(self):
@@ -126,11 +129,24 @@ class Diffusion:
 	# Performs one iteration of local diffusion
 	def local(self):
 		print('\nGrid before local diffusion: \n', self.grid_a)
-		self.local_diffusion(
-			self.grid_a, self.grid_b, self.randoms,
-			grid = (self.n_blocks, self.n_blocks, 1),
-			block = (self.n_threads, self.n_threads, 1),)
-		print('\nGrid after local diffusion: \n', self.grid_b)
+		for i in range(N_STREAMS):
+
+			offset = i * STREAM_SIZE
+
+			# TODO: fix indexing of self.grid
+			self.grid_a = gpuarray.to_gpu(self.grid[offset, offset + STREAM_SIZE - 1])
+			self.grid_b = gpuarray.to_gpu(self.grid[offset, offset + STREAM_SIZE - 1])
+
+			self.local_diffusion(
+				self.grid_a, self.grid_b, self.randoms,
+				grid = (self.n_blocks, self.n_blocks, 1),
+				block = (self.n_threads, self.n_threads, 1),)
+			self.grid_a, self.grid_b = self.grid_b, self.grid_a
+
+			# TODO: fix indexing of self.grid
+			self.grid[offset, offset + STREAM_SIZE - 1] = self.grid_a.get()
+
+		print('\nGrid after local diffusion: \n', self.grid)
 
 	# Performs one iteration of non_local diffusion
 	def non_local(self):
@@ -140,6 +156,7 @@ class Diffusion:
 			self.random_x_coordinates, self.random_y_coordinates,
 			grid = (self.n_blocks, self.n_blocks, 1),
 			block = (self.n_threads, self.n_threads, 1),)
+		self.grid_a, self.grid_b = self.grid_b, self.grid_a
 		print('\nGrid after non_local diffusion: \n', self.grid_a)
 
 	# unnecessary for FOREST implementation
