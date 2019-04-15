@@ -4,6 +4,7 @@
 
 # imports
 import numpy as np
+import sys
 import pycuda.autoinit
 import pycuda.driver as drv
 import pycuda.gpuarray as gpuarray
@@ -37,6 +38,8 @@ class Diffusion:
 	def initialize_grid(self):
 		self.grid = np.zeros((self.size, self.size)).astype(np.float32)
 		self.grid[self.size // 2][self.size // 2] = 1 # seed is in the center of the matrix
+		self.grid_a = gpuarray.empty(nbytes = 4000000000) # allocate a 4 gb block on GPU
+		self.grid_b = gpuarray.empty(nbytes = 4000000000) # allocate a 4 gb block on GPU
 
 	# Transfer CPU memory to GPU memory
 	#def initialize_gpu_memory(self):
@@ -134,8 +137,8 @@ class Diffusion:
 			offset = i * STREAM_SIZE
 
 			# TODO: fix indexing of self.grid
-			self.grid_a = gpuarray.to_gpu(self.grid[offset, offset + STREAM_SIZE - 1])
-			self.grid_b = gpuarray.to_gpu(self.grid[offset, offset + STREAM_SIZE - 1])
+			self.grid_a = gpuarray.set(self.grid[offset, offset + STREAM_SIZE - 1])
+			self.grid_b = gpuarray.set(self.grid[offset, offset + STREAM_SIZE - 1])
 
 			self.local_diffusion(
 				self.grid_a, self.grid_b, self.randoms,
@@ -162,13 +165,14 @@ class Diffusion:
 	# unnecessary for FOREST implementation
 	def run(self):
 		i = 0
-		while i < N_ITERS:
-			self.generate_randoms()
-			self.local()
-			self.generate_random_coords()
-			self.non_local()
-			i += 1
-		print('Final Board: ', grid_b.get())
+		print('Size of GPU array = ', sys.getsizeof(self.grid_a))
+		#while i < N_ITERS:
+			#self.generate_randoms()
+			#self.local()
+			#self.generate_random_coords()
+			#self.non_local()
+			#i += 1
+		#print('Final Board: ', grid_b.get())
 
 if __name__ == '__main__':
 	Diffusion(MATRIX_SIZE, BLOCK_SIZE, P_LOCAL, P_NON_LOCAL)
