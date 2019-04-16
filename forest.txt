@@ -3,7 +3,7 @@ A possible implementation of split (<) and merge (>) in FOREST syntax...
 
 # imports
 import numpy as np
-import datetime
+# import datetime
 import pycuda.autoinit
 import pycuda.driver as drv
 import pycuda.gpuarray as gpuarray
@@ -16,7 +16,7 @@ MATRIX_SIZE = 8
 BLOCK_SIZE = 2
 P_LOCAL = 0.25
 P_NON_LOCAL = 0.50
-GRID_DIMS = MATRIX_SIZE / BLOCK_SIZE
+GRID_DIMS = MATRIX_SIZE // BLOCK_SIZE
 BLOCK_DIMS = BLOCK_SIZE
 
 kernel_code = STUFF
@@ -50,6 +50,7 @@ local_diffusion():
 	gpu_grid_a = data_stack.pop()														# pop grid a off stack
 	randoms = random_floats()															# random values between [0,1)
 	f1(gpu_grid_a, gpu_grid_b, randoms)													# call kernel function
+	gpu_grid_a, gpu_grid_b = gpu_grid_b, gpu_grid_a										# save results back to grid a
 	data_stack.push(gpu_grid_a)															# push grid a back onto stack
 	data_stack.push(gpu_grid_b)															# puch grid b back onto stack
 
@@ -59,7 +60,8 @@ non_local_diffusion():
 	gpu_grid_a = data_stack.pop()														# pop grid a off stack
 	randoms = random_floats()															# random value between [0,1)
 	x_coords, y_coords = random_coords()												# random grid coordinates
-	f2(gpu_grid_b, gpu_grid_a, randoms, x_coords, y_coords)								# call kernel function
+	f2(gpu_grid_a, gpu_grid_b, randoms, x_coords, y_coords)								# call kernel function
+	gpu_grid_a, gpu_grid_b = gpu_grid_b, gpu_grid_a										# save results back to grid a
 	data_stack.push(gpu_grid_a)															# push grid a back onto stack
 	data_stack.push(gpu_grid_b)															# push grid b back onto stack
 
@@ -71,12 +73,12 @@ random_coords():
 	b = ((curandom.rand((MATRIX_SIZE, MATRIX_SIZE))) * MATRIX_SIZE).astype(np.int32)
 	return a, b
 
-write_grid(final_grid):
-	date = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-	file_name = 'output-' + date + '.tif'
-	f = open(file_name, 'w+')
-	f.write(final_grid)
+write_grid(fname):
+	#date = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+	#file_name = 'output-' + date + '.tif'
+	f = open(fname, 'w+')
+	f.write(grid_a)
 	f.close()
 
-initialize_grid(MATRIX, BLOCK_SIZE, P_LOCAL, P_NON_LOCAL) == empty_grid < local_diffuse == distance_diffuse > write_grid("output.tif")
+initialize_grid(MATRIX_SIZE) == empty_grid < local_diffusion == distance_diffusion > write_grid("output.tif")
 
