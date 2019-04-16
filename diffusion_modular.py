@@ -17,7 +17,7 @@ MATRIX_SIZE = 8 # size of square grid
 BLOCK_SIZE = 2 # block dimensions
 P_LOCAL = 0.1 # probability of local diffusion
 P_NON_LOCAL = 0.25 # probability of non-local diffusion
-N_ITERS = 5 # number of iterations
+N_ITERS = 1 # number of iterations
 N_STREAMS = 4 # data broken into four quadrants
 STREAM_SIZE = MATRIX_SIZE * MATRIX_SIZE // N_STREAMS # data elements per stream
 
@@ -38,11 +38,11 @@ class Diffusion:
 	def initialize_grid(self):
 		self.grid = np.zeros((self.size, self.size)).astype(np.float32)
 		self.grid[self.size // 2][self.size // 2] = 1 # seed is in the center of the matrix
-		self.grid_a = gpuarray.empty(nbytes = 4000000000) # allocate a 4 gb block on GPU
-		self.grid_b = gpuarray.empty(nbytes = 4000000000) # allocate a 4 gb block on GPU
 
-	# Transfer CPU memory to GPU memory
-	#def initialize_gpu_memory(self):
+	# Allocate memory on GPU
+	def initialize_gpu_memory(self):
+		self.grid_a = gpuarray.empty(STREAM_SIZE, np.float32)
+		self.grid_b = gpuarray.empty(STREAM_SIZE, np.float32)
 	#	self.grid_a = gpuarray.to_gpu(self.grid)
 	#	self.grid_b = gpuarray.empty((self.size, self.size), np.float32)
 
@@ -131,14 +131,14 @@ class Diffusion:
 
 	# Performs one iteration of local diffusion
 	def local(self):
-		print('\nGrid before local diffusion: \n', self.grid_a)
+		print('\nGrid before local diffusion: \n', self.grid)
 		for i in range(N_STREAMS):
 
 			offset = i * STREAM_SIZE
 
 			# TODO: fix indexing of self.grid
-			self.grid_a = gpuarray.set(self.grid[offset, offset + STREAM_SIZE - 1])
-			self.grid_b = gpuarray.set(self.grid[offset, offset + STREAM_SIZE - 1])
+			self.grid_a = gpuarray.to_gpu(self.grid[0:2])
+			self.grid_b = gpuarray.to_gpu(self.grid[0:2])
 
 			self.local_diffusion(
 				self.grid_a, self.grid_b, self.randoms,
@@ -147,7 +147,7 @@ class Diffusion:
 			self.grid_a, self.grid_b = self.grid_b, self.grid_a
 
 			# TODO: fix indexing of self.grid
-			self.grid[offset, offset + STREAM_SIZE - 1] = self.grid_a.get()
+			self.grid[0:2] = self.grid_a.get()
 
 		print('\nGrid after local diffusion: \n', self.grid)
 
@@ -165,13 +165,12 @@ class Diffusion:
 	# unnecessary for FOREST implementation
 	def run(self):
 		i = 0
-		print('Size of GPU array = ', sys.getsizeof(self.grid_a))
-		#while i < N_ITERS:
-			#self.generate_randoms()
-			#self.local()
+		while i < N_ITERS:
+			self.generate_randoms()
+			self.local()
 			#self.generate_random_coords()
 			#self.non_local()
-			#i += 1
+			i += 1
 		#print('Final Board: ', grid_b.get())
 
 if __name__ == '__main__':
