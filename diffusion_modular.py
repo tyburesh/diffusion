@@ -15,7 +15,7 @@ from pycuda.compiler import SourceModule
 # constants
 MATRIX_SIZE = 8 # size of square grid
 BLOCK_SIZE = 2 # block dimensions
-P_LOCAL = 0.1 # probability of local diffusion
+P_LOCAL = 1.0 # probability of local diffusion
 P_NON_LOCAL = 0.25 # probability of non-local diffusion
 N_ITERS = 1 # number of iterations
 N_STREAMS = 4 # data broken into four quadrants
@@ -37,7 +37,7 @@ class Diffusion:
 	# Create MATRIX_SIZE x MATRIX_SIZE numpy array and initialize seed
 	def initialize_grid(self):
 		self.grid = np.zeros((self.size, self.size)).astype(np.float32)
-		self.grid[self.size // 2][self.size // 2] = 1 # seed is in the center of the matrix
+		self.grid[1][1] = 1 # seed is in the center of the matrix
 
 	# Allocate memory on GPU
 	def initialize_gpu_memory(self):
