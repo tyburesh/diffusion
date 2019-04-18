@@ -24,20 +24,28 @@ kernel_code = STUFF
 initialize_grid(MATRIX_SIZE):
 	grid_a = np.zeros((MATRIX_SIZE, MATRIX_SIZE)).astype(np.float32)					# initialize empty grid
 	grid_a[MATRIX_SIZE / 2][MATRIX_SIZE / 2] = 1										# set seed
-	data_stack.push(grid_a)																# push onto stack
+	return grid_a
+	#data_stack.push(grid_a)															# push onto stack
 
 empty_grid():
 	grid_b = np.zeros((MATRIX_SIZE, MATRIX_SIZE)).astype(np.float32)					# initialize empty grid
-	data_stack.push(grid_b)																# push onto stack
+	return grid_b
+	#data_stack.push(grid_b)															# push onto stack
 
-split():
-	gpu_grib_b = gpuarray.to_gpu(data_stack.pop())										# transfer grid_a to GPU memory
-	gpu_grid_a = gpuarray.to_gpu(data_stack.pop())										# transfer grid_b to GPU memory
-	data_stack.push(gpu_grid_a)															# push back onto stack
-	data_stack.push(gpu_grid_b)															# push back onto stack
+initialize_bmsb_kernel:
 	kernel = kernel_code.format(MATRIX_SIZE, P_LOCAL, MATRIX_SIZE, P_NON_LOCAL)			# format kernel code w/ constants
 	mod = SourceModule(kernel)															# compile kernel code
 
+# loop to pop everything off of the stack
+# generic function
+split():
+	gpu_grib_b = gpuarray.to_gpu(data_stack.pop())										# transfer grid_a to GPU memory
+	gpu_grid_a = gpuarray.to_gpu(data_stack.pop())										# transfer grid_b to GPU memory
+	#data_stack.push(gpu_grid_a)														# push back onto stack
+	#data_stack.push(gpu_grid_b)														# push back onto stack
+	return gpu_grid_a, gpu_grid_b
+
+# generic function
 merge():
 	gpu_grid_b = data_stack.pop()														# pop grid b off stack
 	gpu_grid_a = data_stack.pop()														# pop grid a off stack
@@ -51,8 +59,9 @@ local_diffusion():
 	randoms = random_floats()															# random values between [0,1)
 	f1(gpu_grid_a, gpu_grid_b, randoms)													# call kernel function
 	gpu_grid_a, gpu_grid_b = gpu_grid_b, gpu_grid_a										# save results back to grid a
-	data_stack.push(gpu_grid_a)															# push grid a back onto stack
-	data_stack.push(gpu_grid_b)															# puch grid b back onto stack
+	#data_stack.push(gpu_grid_a)														# push grid a back onto stack
+	#data_stack.push(gpu_grid_b)														# puch grid b back onto stack
+	return gpu_grid_a, return gpu_grid_b
 
 non_local_diffusion():
 	f2 = mod.get_function("non_local_diffuse")											# non local diffusion function
@@ -62,8 +71,9 @@ non_local_diffusion():
 	x_coords, y_coords = random_coords()												# random grid coordinates
 	f2(gpu_grid_a, gpu_grid_b, randoms, x_coords, y_coords)								# call kernel function
 	gpu_grid_a, gpu_grid_b = gpu_grid_b, gpu_grid_a										# save results back to grid a
-	data_stack.push(gpu_grid_a)															# push grid a back onto stack
-	data_stack.push(gpu_grid_b)															# push grid b back onto stack
+	#data_stack.push(gpu_grid_a)														# push grid a back onto stack
+	#data_stack.push(gpu_grid_b)														# push grid b back onto stack
+	return gpu_grid_a, return gpu_grid_b
 
 random_floats():
 	return curandom.rand((MATRIX_SIZE, MATRIX_SIZE))
