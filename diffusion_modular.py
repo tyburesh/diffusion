@@ -43,12 +43,17 @@ class Diffusion:
 
 	# Allocate memory on GPU
 	def initialize_gpu_memory(self):
-		self.gpu_grid_a = drv.mem_alloc(2500000000)
-		self.gpu_grid_b = drv.mem_alloc(2500000000)
+		self.gpu_grid_a = drv.mem_alloc(10000000) # input window
+		self.gpu_grid_b = drv.mem_alloc(10000000) # output window
+		self.buf_a = drv.mem_alloc(10000000) # input window back buffer
+		self.buf_b = drv.mem_alloc(10000000) # output window back buffer
+		self.buf_a_ready = 0
+		self.buf_b_ready = 0
 
 	# Create kernel and kernel functions
 	def initialize_kernel(self):
 		self.kernel_code = """
+
 			__global__ void local_diffuse(float* grid_a, float* grid_b, float* randoms)
 			{{
 
@@ -121,8 +126,7 @@ class Diffusion:
 				}}
 			}}
 		"""
-
-		self.kernel = self.kernel_code.format(self.size, self.p_local, self.size, self.p_non_local)
+		self.kernel = self.kernel_code.format(self.size, self.p_local, self.size, self.p_non_local, self.size)
 		self.mod = SourceModule(self.kernel)
 		self.local_diffusion = self.mod.get_function('local_diffuse')
 		self.non_local_diffusion = self.mod.get_function('non_local_diffuse')

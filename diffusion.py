@@ -16,7 +16,7 @@ MATRIX_SIZE = 8 # size of square grid
 BLOCK_SIZE = 2 # block dimensions
 P_LOCAL = 0.1 # probability of local diffusion
 P_NON_LOCAL = 0.25 # probability of non-local diffusion
-N_ITERS = 10 # number of iterations
+N_ITERS = 5 # number of iterations
 
 class Diffusion:
 	def __init__(self, matrix, block, local, non_local):
@@ -30,15 +30,19 @@ class Diffusion:
 		self.run()
 
 	def initialize_grid(self):
+		print('Initializing grid')
 		self.grid = np.zeros((self.size, self.size)).astype(np.float32)
 		self.grid[self.size // 2][self.size // 2] = 1 # seed is in the center of the matrix
 
 	def initialize_kernel(self):
+		print('Initializing kernel')
 		self.kernel_code = """
 
 			// Ignore edge rows and columns
 			__global__ void local_diffuse(float* grid, float* new_grid, float* randoms)
 			{{
+
+				printf("Local diffusion called...\\n");
 
 				unsigned int grid_size = {};
 				float prob = {};
@@ -83,6 +87,8 @@ class Diffusion:
 			// Ignore edge rows and columns
 			__global__ void non_local_diffuse(float* grid, float* new_grid, float* randoms, int* x_coords, int* y_coords)
 			{{
+
+				printf("Non-local diffusion called...\\n");
 
 				unsigned int grid_size = {};
 				float prob = {};
