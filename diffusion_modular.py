@@ -39,7 +39,9 @@ class Diffusion:
 	# Create MATRIX_SIZE x MATRIX_SIZE numpy array and initialize seed
 	def initialize_grid(self):
 		self.grid = np.zeros((self.size, self.size)).astype(np.float32)
-		self.grid[1][1] = 1 # seed is in the center of the matrix
+		self.grid[self.size // 2][self.size // 2] = 1 # seed is in the center of the matrix
+		self.grid = self.grid.reshape(self.size * self.size)
+		self.test = drv.pagelocked_empty_like(self.grid)
 
 	# Allocate memory on GPU
 	def initialize_gpu_memory(self):
@@ -47,8 +49,8 @@ class Diffusion:
 		self.gpu_grid_b = drv.mem_alloc(10000000) # output window
 		self.buf_a = drv.mem_alloc(10000000) # input window back buffer
 		self.buf_b = drv.mem_alloc(10000000) # output window back buffer
-		self.buf_a_ready = 0
-		self.buf_b_ready = 0
+		#self.buf_a_ready = 0
+		#self.buf_b_ready = 0
 
 	# Create kernel and kernel functions
 	def initialize_kernel(self):
@@ -157,25 +159,20 @@ class Diffusion:
 
 	# Performs one iteration of local diffusion
 	def local(self):
-		print('\nGrid before local diffusion: \n', self.grid)
+		print('\nGrid before local diffusion: {}\n\n'.format(self.grid))
 
 		for i in range(N_STREAMS):
 
-			start_index = i * (STREAM_SIZE // MATRIX_SIZE)
-			end_index = start_index + (STREAM_SIZE // MATRIX_SIZE)
+			start_index = i * STREAM_SIZE
+			end_index = start_index + STREAM_SIZE
+			#start_index = i * (STREAM_SIZE // MATRIX_SIZE)
+			#end_index = start_index + (STREAM_SIZE // MATRIX_SIZE)
 
-			# Need to figure out indexing of self.grid
-			# Pass in quadrants rather than rows
-			# Generate random numbers to be equal to the size of the quadrant
-			if i == 0: # top left
-				drv.memcpy_htod(self.gpu_grid_a, np.array([self.grid[i][:2] for i in range(2)]))
-			elif i == 1: # top right
-				drv.memcpy_htod(self.gpu_grid_a, np.array([self.grid[i][2:] for i in range(2)]))
-			elif i == 2: # bottom left
-				drv.memcpy_htod(self.gpu_grid_a, np.array([self.grid[i][:2] for i in range(2,4)]))
-			elif i == 3: # bottom right
-				drv.memcpy_htod(self.gpu_grid_a, np.array([self.grid[i][2:] for i in range(2,4)]))
+			# Copy data from host to device
+			drv.memcpy_htod_async(self.gpu_grid_a, self.test[start_index:end_index], stream = self.streams[i])
+			print('Grid data for iteration {}: {}\n'.format(i, self.test[start_index:end_index]))
 
+			# look into pass start_index and end_index into the kernel function?
 			self.events[i]['local_kernel_begin'].record(self.streams[i])
 			self.local_diffusion(
 				self.gpu_grid_a, self.gpu_grid_b, self.randoms,
@@ -185,13 +182,17 @@ class Diffusion:
 			self.events[i]['local_kernel_end'].record(self.streams[i])
 			self.gpu_grid_a, self.gpu_grid_b = self.gpu_grid_b, self.gpu_grid_a
 
-			drv.memcpy_dtoh(self.grid[start_index:end_index], self.gpu_grid_a)
+			# Copy data from device to host
+			drv.memcpy_dtoh_async(self.test[start_index:end_index], self.gpu_grid_a, stream = self.streams[i])
+			print('Grid after iteration {}: {}\n\n'.format(i, self.grid))
 
-		print('\nGrid after local diffusion: \n', self.grid)
+
+		#self.grid = self.grid.reshape((self.size, self.size))
+		print('\nGrid after local diffusion: \n', self.test)
 
 	# Performs one iteration of non_local diffusion
 	def non_local(self):
-		print('\nGrid before non_local diffusion: \n', self.gpu_grid_b)
+		print('\nGrid before non_local diffusion: {}\n'.format(self.grid))
 
 		for i in range(N_STREAMS):
 
