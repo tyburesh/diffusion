@@ -19,7 +19,7 @@ GRID_DIMS = (MATRIX_SIZE + BLOCK_DIMS - 1) // BLOCK_DIMS # grid dimensions
 P_LOCAL = 1.0 # probability of local diffusion
 P_NON_LOCAL = 0.25 # probability of non-local diffusion
 N_ITERS = 1 # number of iterations
-N_STREAMS = 1 # data broken into four quadrants
+N_STREAMS = 2 # data broken into four quadrants
 STREAM_SIZE = MATRIX_SIZE * MATRIX_SIZE // N_STREAMS # data elements per stream
 
 
@@ -41,8 +41,9 @@ class Diffusion:
 		#self.grid = np.zeros((self.size, self.size)).astype(np.float32)
 		self.grid = drv.pagelocked_empty((self.size, self.size), np.float32)
 		print('\n\nSize of self.grid = {}'.format(sys.getsizeof(self.grid)))
-		self.grid[self.size // 2][self.size // 2] = 1 # seed is in the center of the matrix
-		#self.grid = self.grid.reshape(self.size * self.size)
+		self.grid[1][1] = 1 # seed is in the center of the matrix
+		self.grid[6][6] = 1
+		self.grid = self.grid.reshape(self.size * self.size)
 
 	# Allocate memory on GPU
 	def initialize_gpu_memory(self):
@@ -166,15 +167,16 @@ class Diffusion:
 
 		for i in range(N_STREAMS):
 
-			#start_index = i * STREAM_SIZE
-			#end_index = start_index + STREAM_SIZE
+			start_index = i * STREAM_SIZE
+			end_index = start_index + STREAM_SIZE
 			#start_index = i * (STREAM_SIZE // MATRIX_SIZE)
 			#end_index = start_index + (STREAM_SIZE // MATRIX_SIZE)
 
 			# Copy data from host to device
-			drv.memcpy_htod_async(self.gpu_grid_a, self.grid, stream = self.streams[i])
+			drv.memcpy_htod_async(int(self.gpu_grid_a) + start_index, self.grid[start_index:end_index], stream = self.streams[i])
 			
 			#print('Grid data for iteration {}: {}\n'.format(i, self.grid))
+			print('Grid_GPU = {}'.format(int(self.gpu_grid_a)))
 
 			# look into pass start_index and end_index into the kernel function?
 			self.events[i]['local_kernel_begin'].record(self.streams[i])
@@ -187,12 +189,12 @@ class Diffusion:
 			self.gpu_grid_a, self.gpu_grid_b = self.gpu_grid_b, self.gpu_grid_a
 
 			# Copy data from device to host
-			drv.memcpy_dtoh_async(self.grid, self.gpu_grid_a, stream = self.streams[i])
+			drv.memcpy_dtoh_async(self.grid[start_index:end_index], int(self.gpu_grid_a) + start_index, stream = self.streams[i])
 			self.streams[i].synchronize()
 
 			#print('Grid after iteration {}: {}\n\n'.format(i, self.grid))
 
-		#self.grid = self.grid.reshape((self.size, self.size))
+		self.grid = self.grid.reshape((self.size, self.size))
 		print('\nGrid after local diffusion: \n', self.grid)
 
 	# Performs one iteration of non_local diffusion
