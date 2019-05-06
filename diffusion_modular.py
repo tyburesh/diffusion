@@ -141,6 +141,7 @@ class Diffusion:
 							x_coord = (int) truncf(curand_uniform(&local_state) * (grid_size - 0.000001));
 							y_coord = (int) truncf(curand_uniform(&local_state) * (grid_size - 0.000001));
 							spread_index = y_coord * grid_size + x_coord;
+							printf("Thread_ID  = %u\\tNum = %f\\tY_coord = %u\\tX_coord = %u\\t", thread_id, num, y_coord, x_coord);
 							grid_b[spread_index] = 1;
 							num = curand_uniform(&local_state);
 						}}
