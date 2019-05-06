@@ -16,8 +16,8 @@ from pycuda.compiler import SourceModule
 MATRIX_SIZE = 8 # size of square grid
 BLOCK_DIMS = 2 # block dimensions
 GRID_DIMS = (MATRIX_SIZE + BLOCK_DIMS - 1) // BLOCK_DIMS # grid dimensions
-P_LOCAL = 1.0 # probability of local diffusion
-P_NON_LOCAL = 0.50 # probability of non-local diffusion
+P_LOCAL = 0.5 # probability of local diffusion
+P_NON_LOCAL = 0.25 # probability of non-local diffusion
 N_ITERS = 1 # number of iterations
 
 class Diffusion:
@@ -141,7 +141,7 @@ class Diffusion:
 							x_coord = (int) truncf(curand_uniform(&local_state) * (grid_size - 0.000001));
 							y_coord = (int) truncf(curand_uniform(&local_state) * (grid_size - 0.000001));
 							spread_index = y_coord * grid_size + x_coord;
-							printf("Thread_ID  = %u\\tNum = %f\\tY_coord = %u\\tX_coord = %u\\t", thread_id, num, y_coord, x_coord);
+							printf("Thread_ID  = %u\\tNum = %f\\tY_coord = %u\\tX_coord = %u\\n", thread_id, num, y_coord, x_coord);
 							grid_b[spread_index] = 1;
 							num = curand_uniform(&local_state);
 						}}
@@ -185,7 +185,7 @@ class Diffusion:
 	def run(self):
 		i = 0
 		while i < N_ITERS:
-			#self.local()
+			self.local()
 			self.non_local()
 			i += 1
 		print('\nFinal Board: ', self.grid_a.get())
